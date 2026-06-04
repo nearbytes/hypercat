@@ -1,0 +1,59 @@
+{
+  "name": "hcat",
+  "version": "1.0.0",
+  "description": "netcat for the peer-to-peer age: pipe stdin/stdout between machines over a Hyperswarm topic, with no IP addresses, ports, or port forwarding.",
+  "type": "commonjs",
+  "bin": {
+    "hcat": "index.js"
+  },
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "server.js",
+    "client.js",
+    "topic.js",
+    "crypto.js",
+    "pipe.js",
+    "logger.js",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "start": "node index.js"
+  },
+  "keywords": [
+    "netcat",
+    "nc",
+    "hyperswarm",
+    "p2p",
+    "peer-to-peer",
+    "dht",
+    "tunnel",
+    "pipe",
+    "stdin",
+    "stdout",
+    "cli"
+  ],
+  "author": "Alexander Kurz <alexhkurz@gmail.com>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nearbytes/hypercat.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nearbytes/hypercat/issues"
+  },
+  "homepage": "https://github.com/nearbytes/hypercat#readme",
+  "dependencies": {
+    "commander": "^14.0.3",
+    "hyperswarm": "^4.17.0"
+  },
+  "devDependencies": {
+    "hyperdht": "^6.32.0"
+  }
+}
