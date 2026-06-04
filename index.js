@@ -61,7 +61,8 @@ function buildProgram () {
     .addOption(new Option('-e, --encrypt <secret>', 'add an AES-256-GCM layer using a shared passphrase').env('HCAT_SECRET'))
     .option('-w, --timeout <seconds>', 'client: give up if no peer is found in this many seconds (0 = forever)', parseTimeout, 0)
     .option('-q, --quiet', 'suppress status messages on stderr')
-    .option('-v, --verbose', 'print extra diagnostics on stderr')
+    .option('-v, --verbose', 'print discovery diagnostics on stderr')
+    .option('-d, --debug', 'same as --verbose (DHT lookup progress, topic id, swarm stats)')
     .version(pkg.version, '-V, --version', 'output the version number')
     .addHelpText('after', EXAMPLES)
     .showHelpAfterError('(add --help for usage)')
@@ -75,7 +76,7 @@ async function main (argv) {
 
   const topic = program.args[0]
   const opts = program.opts()
-  const log = createLogger({ quiet: opts.quiet, verbose: opts.verbose })
+  const log = createLogger({ quiet: opts.quiet, verbose: opts.verbose || opts.debug })
 
   const isServer = Boolean(opts.listen || opts.keepOpen)
 

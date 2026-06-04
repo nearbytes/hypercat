@@ -5,6 +5,7 @@ const { topicFromName, topicPreview } = require('./topic')
 const { deriveKey, createCipherPair } = require('./crypto')
 const { pipePeer } = require('./pipe')
 const { noopLogger } = require('./logger')
+const { logSessionDetails, attachSwarmDiagnostics } = require('./debug')
 
 /**
  * Run hcat in server mode: announce a topic on the Hyperswarm DHT and serve
@@ -39,6 +40,8 @@ async function runServer (opts) {
   const topic = topicFromName(name)
   const key = secret ? deriveKey(secret) : null
   const swarm = new Hyperswarm(bootstrap ? { bootstrap } : {})
+  logSessionDetails(log, { role: 'server', name, topic, secret })
+  attachSwarmDiagnostics(swarm, log)
 
   let resolveDone
   const done = new Promise((resolve) => { resolveDone = resolve })
@@ -120,6 +123,7 @@ async function runServer (opts) {
 
   const discovery = swarm.join(topic, { server: true, client: false })
   await discovery.flushed()
+  log.debug('DHT announce flush complete.')
 
   log.status(`Announcing on topic: ${name} (${topicPreview(topic)})...`)
   log.status('Waiting for a peer to connect...')

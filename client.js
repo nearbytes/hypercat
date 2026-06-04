@@ -5,6 +5,7 @@ const { topicFromName, topicPreview } = require('./topic')
 const { deriveKey } = require('./crypto')
 const { pipePeer } = require('./pipe')
 const { noopLogger } = require('./logger')
+const { logSessionDetails, attachSwarmDiagnostics } = require('./debug')
 
 /**
  * Run hcat in client mode: look up a topic on the Hyperswarm DHT, connect to
@@ -39,6 +40,8 @@ async function runClient (opts) {
   const topic = topicFromName(name)
   const key = secret ? deriveKey(secret) : null
   const swarm = new Hyperswarm(bootstrap ? { bootstrap } : {})
+  logSessionDetails(log, { role: 'client', name, topic, secret })
+  attachSwarmDiagnostics(swarm, log)
 
   let resolveDone
   const done = new Promise((resolve) => { resolveDone = resolve })
@@ -98,9 +101,12 @@ async function runClient (opts) {
 
   // The server may not be announcing yet (or may restart later). Keep refreshing
   // the lookup until we connect, so order of startup doesn't matter.
+  let refreshCount = 0
   if (!connected) {
     refreshTimer = setInterval(() => {
       if (connected) return
+      refreshCount++
+      log.debug(`refreshing DHT lookup #${refreshCount} (peers=${swarm.peers.size})`)
       discovery.refresh({ client: true }).catch((err) => log.debug(`refresh error: ${err.message}`))
     }, 3000)
     if (typeof refreshTimer.unref === 'function') refreshTimer.unref()

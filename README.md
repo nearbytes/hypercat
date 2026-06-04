@@ -94,7 +94,8 @@ Options:
   -w, --timeout <seconds>  client: give up if no peer is found in this many
                            seconds (0 = forever)
   -q, --quiet              suppress status messages on stderr
-  -v, --verbose            print extra diagnostics on stderr
+  -v, --verbose            print discovery diagnostics on stderr
+  -d, --debug              same as --verbose (topic id, DHT refresh, swarm stats)
   -V, --version            output the version number
   -h, --help               display help for command
 ```
@@ -262,7 +263,10 @@ hcat/
 - **The client never connects.** Confirm both sides use the identical topic
   string (it is case- and whitespace-sensitive). First connections over the
   public DHT can take a few seconds while NAT hole-punching happens. Use
-  `--verbose` to see discovery diagnostics, or `--timeout <s>` to fail fast.
+  `--verbose` or `--debug` on **both** sides and compare the printed **topic id**
+  (12 hex chars); if they differ, the topic names do not match. While waiting,
+  `peers=0` means the DHT has not found a server yet; `peers>0` with no
+  connection often means NAT/firewall trouble. Or use `--timeout <s>` to fail fast.
 - **`decryption failed` errors.** The two sides are using different `--encrypt`
   secrets, or only one side passed `--encrypt`.
 - **Garbled output.** One side used `--encrypt` and the other did not.
