@@ -24,6 +24,7 @@ echo "hello" | hcat my-tunnel
 - [Why](#why)
 - [Install](#install)
 - [Quick start](#quick-start)
+- [Symmetric mode](#symmetric-mode)
 - [Usage](#usage)
 - [Common recipes](#common-recipes)
 - [How it works](#how-it-works)
@@ -77,6 +78,133 @@ hcat my-tunnel
 Whatever you type in one window appears in the other. Press `Ctrl-D` to send
 EOF, or `Ctrl-C` to quit.
 
+**Prefer not to pick server vs client?** Use [symmetric mode](#symmetric-mode)
+instead — run the same command on both sides:
+
+```sh
+# Terminal 1 and 2 — identical command, any order
+hcat -s my-tunnel
+```
+
+## Symmetric mode
+
+Symmetric mode (`-s`) is for when you want both machines to run the **same
+command** — no `-l` on one side and a bare topic on the other. It works like
+[hyperbeam](https://github.com/holepunchto/hyperbeam): each peer both announces
+and looks up the topic, so startup order does not matter and neither side needs
+to know whether it is "server" or "client".
+
+```sh
+# on BOTH machines — copy-paste the same line
+hcat -s my-tunnel
+```
+
+Type in either window; output appears in the other. Press `Ctrl-D` to send EOF,
+or `Ctrl-C` to quit.
+
+> **First contact can take a while.** Between two real machines on the public
+> DHT, both sides can sit on `Waiting for a peer to connect...` for anything
+> from a few seconds to a minute or so while the DHT propagates the topic and
+> NAT hole-punching completes. This is normal — keep both running and wait for
+> `Peer connected.` to appear. Anything you type *before* that point is not
+> lost: stdin is buffered and flushed to the peer the moment the connection is
+> established (so early lines arrive in one burst once you pair up).
+
+### When to use `-s` vs `-l` / no flag
+
+| Situation | Use |
+|---|---|
+| One machine is clearly the receiver (file sink, log collector) | `hcat -l topic` on receiver, `hcat topic` on sender |
+| Two peers are equals (chat, ad-hoc tunnel, either may start first) | `hcat -s topic` on **both** |
+| You do not want to explain "run this on A, that on B" | `hcat -s topic` on **both** |
+
+### Symmetric recipes
+
+**Interactive two-way chat**
+
+```sh
+hcat -s chatroom        # window 1
+hcat -s chatroom        # window 2
+```
+
+**Send a one-off message** (one side pipes in and exits; the other stays up
+until it receives EOF)
+
+```sh
+echo "hello" | hcat -s my-tunnel    # sender
+hcat -s my-tunnel                   # receiver prints it
+```
+
+**Transfer a file**
+
+```sh
+# receiver
+hcat -s transfer > received.iso
+
+# sender
+cat ubuntu.iso | hcat -s transfer
+```
+
+**Pipe a directory (tar over hcat)**
+
+```sh
+# receiver
+hcat -s move | tar xzf -
+
+# sender
+tar czf - ./project | hcat -s move
+```
+
+**Add encryption** (same secret on both sides; topic alone is not a password)
+
+```sh
+hcat -s vault --encrypt "correct horse battery staple"
+```
+
+Or via environment variable:
+
+```sh
+export HCAT_SECRET="correct horse battery staple"
+hcat -s vault
+```
+
+**Broadcast hub** (many senders → one long-lived receiver)
+
+```sh
+hcat -sk logsink > app.log
+```
+
+**Time-box waiting for a peer**
+
+```sh
+hcat -s my-tunnel --timeout 30   # exit non-zero if no peer within 30s
+```
+
+**Keep stdout clean for redirects**
+
+```sh
+hcat -s my-tunnel 2>/dev/null > only_payload.bin
+```
+
+### Symmetric troubleshooting
+
+- **Both sides show "Waiting for a peer to connect..." for a while** — this is
+  expected, not a failure. Across the public DHT, first contact between two real
+  machines often takes several seconds and sometimes up to a minute (DHT
+  propagation + NAT hole-punching). Just leave both running until you see
+  `Peer connected.`; the session works from there. Compare the **topic id** in
+  parentheses (e.g. `08d2feb8d700`) on both sides — if it matches, you are on
+  the same topic and only need to wait.
+- **You typed before it connected and worried the text was lost** — it is not.
+  stdin is buffered, so lines entered before `Peer connected.` are delivered in
+  one burst as soon as the peer arrives.
+- **It connects faster locally than between machines** — same-host or same-LAN
+  peers pair almost instantly; cross-Internet peers behind NAT take longer.
+- **Want to see what is happening while you wait** — add `--verbose` (or `-d`)
+  on both sides to print discovery progress and peer counts on stderr.
+- **`decryption failed` or garbled output** — both sides must use the same
+  `--encrypt` secret (or both use `HCAT_SECRET`).
+
 ## Usage
 
 ```text
@@ -112,34 +240,14 @@ Options:
 
 Either side may send and receive; the roles only describe who announces and who
 looks up. Startup order does not matter — a client started first will keep
-looking until the server appears.
-
-### Symmetric mode (`-s`)
-
-With `-l`/no-`-l` you have to decide in advance which machine is the server and
-which is the client. Symmetric mode removes that decision: both peers run the
-**exact same command** and rendezvous as equals, in the spirit of
-[hyperbeam](https://github.com/holepunchto/hyperbeam).
-
-```sh
-# on BOTH machines — identical command, any order
-hcat -s my-tunnel
-```
-
-Under the hood each peer both announces *and* looks up the topic
-(`server: true, client: true`), so neither side needs to know the other's role.
-It still pipes stdin/stdout exactly like the other modes and honours
-`--encrypt`, `--timeout`, and `--keep-open`:
-
-```sh
-# symmetric, with a shared secret, on both sides
-hcat -s vault --encrypt "correct horse battery staple"
-
-# symmetric broadcast hub that stays up for many peers
-hcat -sk logsink > app.log
-```
+looking until the server appears. For the symmetric alternative, see
+[Symmetric mode](#symmetric-mode).
 
 ## Common recipes
+
+These examples use classic server/client mode (`-l` on one side). For the same
+tasks with **identical commands on both sides**, see
+[Symmetric recipes](#symmetric-recipes).
 
 **Send a one-off message**
 
