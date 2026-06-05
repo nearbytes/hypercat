@@ -8,6 +8,7 @@ const createTestnet = require('hyperdht/testnet')
 
 const { runServer } = require('../server')
 const { runClient } = require('../client')
+const { runSymmetric } = require('../symmetric')
 
 function collect (stream) {
   const chunks = []
@@ -92,4 +93,51 @@ test('encrypted binary transfer round-trips intact', { timeout: 30000 }, async (
   assert.strictEqual(await clientDone, 0)
   assert.strictEqual(await serverDone, 0)
   assert.deepStrictEqual(serverGot(), payload)
+})
+
+test('symmetric: two identical peers rendezvous and exchange', { timeout: 30000 }, async (t) => {
+  const testnet = await createTestnet(3)
+  t.after(() => testnet.destroy())
+  const bootstrap = testnet.bootstrap
+
+  const aOut = new PassThrough()
+  const bOut = new PassThrough()
+  const aGot = collect(aOut)
+  const bGot = collect(bOut)
+
+  const aIn = new PassThrough()
+  const bIn = new PassThrough()
+
+  // No -l anywhere: both sides run the same symmetric command.
+  const aDone = runSymmetric({ name: 'sym', bootstrap, input: aIn, output: aOut })
+  const bDone = runSymmetric({ name: 'sym', bootstrap, input: bIn, output: bOut })
+
+  aIn.end(Buffer.from('hello from A'))
+  bIn.end(Buffer.from('hello from B'))
+
+  await Promise.all([aDone, bDone])
+  assert.strictEqual(aGot().toString(), 'hello from B')
+  assert.strictEqual(bGot().toString(), 'hello from A')
+})
+
+test('symmetric: honours the shared-secret encryption layer', { timeout: 30000 }, async (t) => {
+  const testnet = await createTestnet(3)
+  t.after(() => testnet.destroy())
+  const bootstrap = testnet.bootstrap
+  const secret = 'correct horse battery staple'
+
+  const aOut = new PassThrough()
+  const aGot = collect(aOut)
+
+  const aDone = runSymmetric({ name: 'sym-enc', secret, bootstrap, input: new PassThrough(), output: aOut })
+
+  const payload = crypto.randomBytes(128 * 1024)
+  const bIn = new PassThrough()
+  const bDone = runSymmetric({ name: 'sym-enc', secret, bootstrap, input: bIn, output: new PassThrough() })
+
+  bIn.end(payload)
+
+  assert.strictEqual(await bDone, 0)
+  assert.strictEqual(await aDone, 0)
+  assert.deepStrictEqual(aGot(), payload)
 })

@@ -11,6 +11,7 @@
     "index.js",
     "server.js",
     "client.js",
+    "symmetric.js",
     "topic.js",
     "crypto.js",
     "pipe.js",

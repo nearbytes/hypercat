@@ -5,6 +5,7 @@ const { Command, Option, InvalidArgumentError } = require('commander')
 const pkg = require('./package.json')
 const { runServer } = require('./server')
 const { runClient } = require('./client')
+const { runSymmetric } = require('./symmetric')
 const { createLogger } = require('./logger')
 
 function parseTimeout (value) {
@@ -32,6 +33,9 @@ Examples:
   hcat -l chatroom
   hcat chatroom
 
+  # Symmetric mode: run the SAME command on both sides (no -l needed)
+  hcat -s my-tunnel                 # on both machines; order doesn't matter
+
   # Long-lived broadcast hub: many senders -> one receiver
   hcat -lk logsink > app.log
 
@@ -57,7 +61,8 @@ function buildProgram () {
     .description(pkg.description)
     .argument('<topic>', 'human-readable topic name to listen on or connect to')
     .option('-l, --listen', 'server mode: announce and listen on the topic (like nc -l)')
-    .option('-k, --keep-open', 'keep serving after a peer leaves; accept many peers (implies -l, like nc -k)')
+    .option('-s, --symmetric', 'symmetric mode: run the same command on both sides (hyperbeam-style; no -l needed)')
+    .option('-k, --keep-open', 'keep serving after a peer leaves; accept many peers (like nc -k)')
     .addOption(new Option('-e, --encrypt <secret>', 'add an AES-256-GCM layer using a shared passphrase').env('HCAT_SECRET'))
     .option('-w, --timeout <seconds>', 'client: give up if no peer is found in this many seconds (0 = forever)', parseTimeout, 0)
     .option('-q, --quiet', 'suppress status messages on stderr')
@@ -78,7 +83,8 @@ async function main (argv) {
   const opts = program.opts()
   const log = createLogger({ quiet: opts.quiet, verbose: opts.verbose || opts.debug })
 
-  const isServer = Boolean(opts.listen || opts.keepOpen)
+  const isSymmetric = Boolean(opts.symmetric)
+  const isServer = !isSymmetric && Boolean(opts.listen || opts.keepOpen)
 
   const controller = new AbortController()
   const onSignal = () => controller.abort()
@@ -93,9 +99,14 @@ async function main (argv) {
   }
 
   try {
-    const code = isServer
-      ? await runServer({ ...common, keepOpen: Boolean(opts.keepOpen) })
-      : await runClient({ ...common, timeoutMs: opts.timeout * 1000 })
+    let code
+    if (isSymmetric) {
+      code = await runSymmetric({ ...common, keepOpen: Boolean(opts.keepOpen), timeoutMs: opts.timeout * 1000 })
+    } else if (isServer) {
+      code = await runServer({ ...common, keepOpen: Boolean(opts.keepOpen) })
+    } else {
+      code = await runClient({ ...common, timeoutMs: opts.timeout * 1000 })
+    }
     return code
   } finally {
     process.off('SIGINT', onSignal)

@@ -87,8 +87,10 @@ Arguments:
 
 Options:
   -l, --listen             server mode: announce and listen on the topic (like nc -l)
+  -s, --symmetric          symmetric mode: run the same command on both sides
+                           (hyperbeam-style; no -l needed)
   -k, --keep-open          keep serving after a peer leaves; accept many peers
-                           (implies -l, like nc -k)
+                           (like nc -k)
   -e, --encrypt <secret>   add an AES-256-GCM layer using a shared passphrase
                            (env: HCAT_SECRET)
   -w, --timeout <seconds>  client: give up if no peer is found in this many
@@ -106,10 +108,36 @@ Options:
 |---|---|---|
 | `hcat -l <topic>` | **server** — announces the topic, waits for a peer | `nc -l <port>` |
 | `hcat <topic>` | **client** — looks up the topic, connects | `nc <host> <port>` |
+| `hcat -s <topic>` | **symmetric** — run the *same* command on both sides | `hyperbeam` |
 
 Either side may send and receive; the roles only describe who announces and who
 looks up. Startup order does not matter — a client started first will keep
 looking until the server appears.
+
+### Symmetric mode (`-s`)
+
+With `-l`/no-`-l` you have to decide in advance which machine is the server and
+which is the client. Symmetric mode removes that decision: both peers run the
+**exact same command** and rendezvous as equals, in the spirit of
+[hyperbeam](https://github.com/holepunchto/hyperbeam).
+
+```sh
+# on BOTH machines — identical command, any order
+hcat -s my-tunnel
+```
+
+Under the hood each peer both announces *and* looks up the topic
+(`server: true, client: true`), so neither side needs to know the other's role.
+It still pipes stdin/stdout exactly like the other modes and honours
+`--encrypt`, `--timeout`, and `--keep-open`:
+
+```sh
+# symmetric, with a shared secret, on both sides
+hcat -s vault --encrypt "correct horse battery staple"
+
+# symmetric broadcast hub that stays up for many peers
+hcat -sk logsink > app.log
+```
 
 ## Common recipes
 
@@ -213,7 +241,9 @@ hcat -l my-tunnel 2>/dev/null > only_payload.bin
 1. The topic name is hashed with SHA-256 into the 32-byte topic Hyperswarm
    expects (`topic.js`). Both sides derive the same topic from the same name.
 2. The server announces the topic on the DHT; the client looks it up. They make
-   a **direct** connection (hole-punched through NAT when possible).
+   a **direct** connection (hole-punched through NAT when possible). In symmetric
+   mode (`-s`) both peers announce *and* look up, so there is no fixed
+   server/client and the same command works on either side (`symmetric.js`).
 3. Every connection is end-to-end encrypted with the
    [Noise protocol](https://noiseprotocol.org/) by Hyperswarm itself.
 4. `hcat` then wires the connection to stdin/stdout, with netcat-style
@@ -226,6 +256,7 @@ hcat/
 ├── index.js     # CLI entry point (argument parsing, signals, exit codes)
 ├── server.js    # server mode (announce + serve)
 ├── client.js    # client mode (lookup + connect)
+├── symmetric.js # symmetric mode (announce + lookup; same command both sides)
 ├── topic.js     # topic name -> 32-byte topic hash
 ├── crypto.js    # optional shared-secret AES-256-GCM layer
 ├── pipe.js      # bidirectional stdin/stdout <-> peer piping
